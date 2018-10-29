@@ -80,10 +80,6 @@ class VH400Sensor:
             return vwc
 
     def did_state_change(self):
-        # Return False if the first reading
-        if self.prev_state == VH400SensorState.startup:
-            return False
-
         return self.state != self.prev_state
 
     def set_sensor_state(self, vwc):
