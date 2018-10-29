@@ -4,9 +4,10 @@ import time
 
 
 class VH400SensorState(enum.Enum):
+    startup = 0                 # This is the initial state the sensor goes in, should leave this state after first read
     ok = 1
-    invalid_configuration = 2
-    unable_to_read = 3
+    dry = 2
+    wet = 3
     bad_read = 4
 
 
@@ -30,22 +31,25 @@ class VH400SensorData:
 
 
 class VH400Sensor:
-
     def __init__(self, pin, d_threshold, w_threshold, mode):
         self.pin = pin
         self.d_threshold = d_threshold
         self.w_threshold = w_threshold
         self.mode = mode
-        self.state = self.get_sensor_state()
 
-    def get_sensor_state(self):
-        return VH400SensorState.ok
+        # State variables
+        self.state = VH400SensorState.startup
+        self.prev_state = self.state
 
     def read_sensor(self):
         # Read value and convert to voltage
         sensor_1dn = analogRead(self.pin)
         voltage = sensor_1dn*(3.0 / 1023.0)
         vwc = self.convert_volts_to_vwc(voltage)
+
+        # Set the current state of the sensor after the read
+        self.prev_state = self.state
+        self.set_sensor_state(vwc)
 
         return sensor_1dn, voltage, vwc
 
@@ -74,6 +78,23 @@ class VH400Sensor:
             return 0
         else:
             return vwc
+
+    def did_state_change(self):
+        # Return False if the first reading
+        if self.prev_state == VH400SensorState.startup:
+            return False
+
+        return self.state != self.prev_state
+
+    def set_sensor_state(self, vwc):
+        if self.is_soil_dry(vwc):
+            self.state = VH400SensorState.dry
+        elif self.is_soil_wet(vwc):
+            self.state = VH400SensorState.wet
+        elif vwc > 0:
+            self.state = VH400SensorState.ok
+        else:
+            self.state = VH400SensorState.bad_read
 
     def is_soil_dry(self, vwc):
         return vwc <= self.d_threshold
