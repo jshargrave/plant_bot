@@ -1,6 +1,7 @@
 from vh400_sensor import VH400Sensor, VH400SensorMode, VH400SensorState
 import enum
 import time
+from notify import EmailNotify, SMSNotify
 
 # Soil thresholds
 DRY_THRESHOLD = 0.10
@@ -32,7 +33,8 @@ class PlantBot:
         # States that trigger notification
         self.notify_action_list = [
             VH400SensorState.dry,
-            VH400SensorState.wet
+            VH400SensorState.wet,
+            VH400SensorState.bad_read
         ]
 
         # States that trigger watering
@@ -40,19 +42,21 @@ class PlantBot:
             VH400SensorState.dry
         ]
 
+        self.notify_list = [
+            EmailNotify("happyguyhere@hotmail.com", "happyguyhere@hotmail.com", ["happyguyhere@hotmail.com", "password"])
+        ]
+
         self.state = PlantBotMode.startup   # Initializing state to startup
         self.waiting_period = 120           # Waiting phase period (sec)
 
     def startup_phase(self):
-        """This function handles any necessary initialization, and then starts the
-        plant bot in the monitor phase.
+        """This function handles any necessary initialization.
 
         :return:
         """
 
         # Start plant bot monitor phase
         self.state = PlantBotMode.monitor
-        self.monitor_phase()
 
     def monitor_phase(self):
         """This is the main loop that all other phases get triggered from.  At the
@@ -65,25 +69,21 @@ class PlantBot:
         :return:
         """
 
-        keep_looping = True
-        while keep_looping:
-            # Enter reading phase
-            self.reading_phase()
+        # Enter reading phase
+        self.reading_phase()
 
-            # Checking if plant bot needs to enter notify state
-            for state_action in self.notify_action_list:
-                for sensor in self.sensor_list:
-                    if sensor.state == state_action:
-                        self.notify_phase(sensor)
+        # Check to see if Plant Bot needs to enter notify phase
+        notify_sensor_list = self.get_phase_sensor_list(self.notify_action_list)
+        if notify_sensor_list:
+            self.notify_phase(notify_sensor_list)
 
-            # Checking if plant bot needs to enter watering state
-            for state_action in self.water_action_list:
-                for sensor in self.sensor_list:
-                    if sensor.state == state_action:
-                        self.watering_phase(sensor)
+        # Check to see if Plant Bot needs to enter watering phase
+        water_sensor_list = self.get_phase_sensor_list(self.water_action_list)
+        if water_sensor_list:
+            self.watering_phase(water_sensor_list)
 
-            # If end of mode switching complete, enter waiting state
-            self.waiting_phase()
+        # If end of mode switching complete, enter waiting state
+        self.waiting_phase()
 
     def reading_phase(self):
         """This function is used to make all sensors take readings and update their
@@ -102,27 +102,28 @@ class PlantBot:
         # Set plant bot state
             self.state = PlantBotMode.monitor
 
-    def notify_phase(self, sensor):
+    def notify_phase(self, sensor_list):
         """This function is used to notify the used about state changes for the sensors.
 
-        :param sensor:
+        :param sensor_list:
         :return:
         """
         # Set plant bot state
         self.state = PlantBotMode.notify
 
-        # Only want to notify if this is a state change.  This way we avoid
-        # spamming multiple notifications
-        if sensor.did_state_change():
-            self.notify(sensor)
+        print("Sending notifications...")
+        message = self.generate_message(sensor_list)
+        for notify in self.notify_list:
+            notify.notify(message)
+        print("Complete!")
 
         # Set plant bot state
-            self.state = PlantBotMode.monitor
+        self.state = PlantBotMode.monitor
 
-    def watering_phase(self, sensor):
+    def watering_phase(self, sensor_list):
         """This function triggers the watering of the plants.
 
-        :param sensor:
+        :param sensor_list:
         :return:
         """
 
@@ -130,7 +131,9 @@ class PlantBot:
         self.state = PlantBotMode.watering
 
         # Trigger watering logic
+        print("Entering watering phase...")
         # water()
+        print("Watering phase complete!")
 
         # Set plant bot state
         self.state = PlantBotMode.monitor
@@ -139,7 +142,6 @@ class PlantBot:
         """This function handles the waiting phase of the plant bot.  The wait
         interval is determined by the waiting variable of the PlantBot.
 
-        :param plant_bot:
         :return:
         """
 
@@ -147,7 +149,40 @@ class PlantBot:
         self.state = PlantBotMode.waiting
 
         # Waiting phase
+        print("Waiting {} min...".format(self.waiting_period/60))
         time.sleep(self.waiting_period)
+        print("Waiting complete!")
 
         # Set plant bot state
         self.state = PlantBotMode.monitor
+
+    def get_phase_sensor_list(self, state_action_list):
+        """This function is used to retrieve the list of sensors that are in
+        the action state.  Meaning that the list of sensors returned are in the
+        correct state when the action in question should be performed.
+
+        :param state_action_list:
+        :return:
+        """
+        sensor_action_list = []
+        for state_action in state_action_list:
+            for sensor in self.sensor_list:
+                if sensor.did_state_change() and sensor.state == state_action:
+                    sensor_action_list.append(sensor)
+        return sensor_action_list
+
+    def generate_message(self, sensor_list):
+        message = "Plant Bot says hello!\n\n"
+
+        for sensor in sensor_list:
+            message += "{}\n\n".format(self.generate_sensor_message(sensor))
+        return message
+
+    @staticmethod
+    def generate_sensor_message(sensor):
+        message = (
+                "Sensor Reading: \n"
+                "  Sensor ID: {}\n"
+                "  State: {}\n"
+                "  Volumetric Water Content: {}\n").format(sensor.sensor_id, sensor.state, sensor.vwc)
+        return message

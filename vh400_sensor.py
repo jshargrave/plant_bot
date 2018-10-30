@@ -31,11 +31,12 @@ class VH400SensorData:
 
 
 class VH400Sensor:
-    def __init__(self, pin, d_threshold, w_threshold, mode):
-        self.pin = pin
+    def __init__(self, sensor_id, d_threshold, w_threshold, mode):
+        self.sensor_id = sensor_id
         self.d_threshold = d_threshold
         self.w_threshold = w_threshold
         self.mode = mode
+        self.vwc = 0
 
         # State variables
         self.state = VH400SensorState.startup
@@ -43,11 +44,12 @@ class VH400Sensor:
 
     def read_sensor(self):
         # Read value and convert to voltage
-        sensor_1dn = analogRead(self.pin)
+        sensor_1dn = 0#analogRead(self.pin)
         voltage = sensor_1dn*(3.0 / 1023.0)
         vwc = self.convert_volts_to_vwc(voltage)
 
         # Set the current state of the sensor after the read
+        self.vwc = vwc
         self.prev_state = self.state
         self.set_sensor_state(vwc)
 
@@ -62,7 +64,7 @@ class VH400Sensor:
         # Calculate VWC
         vwc = 0
         # piecewise regressions
-        if voltage <= 1.1:
+        if 0 < voltage <= 1.1:
             vwc = 10 * voltage - 1
         elif 1.1 < voltage <= 1.3:
             vwc = 25 * voltage - 17.5
@@ -72,12 +74,10 @@ class VH400Sensor:
             vwc = 26.32 * voltage - 7.89
         elif 2.2 < voltage:
             vwc = 62.5 * voltage - 87.5
-
-        # If VWC < 0 return 0
-        if vwc <= 0:
-            return 0
         else:
-            return vwc
+            return -1
+
+        return vwc
 
     def did_state_change(self):
         return self.state != self.prev_state
@@ -93,10 +93,10 @@ class VH400Sensor:
             self.state = VH400SensorState.bad_read
 
     def is_soil_dry(self, vwc):
-        return vwc <= self.d_threshold
+        return 0 < vwc <= self.d_threshold
 
     def is_soil_wet(self, vwc):
-        return vwc <= self.w_threshold
+        return self.d_threshold < vwc <= self.w_threshold
 
     def record(self):
         pass

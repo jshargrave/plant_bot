@@ -6,3 +6,7 @@ if __name__ == "__main__":
     plant_bot = PlantBot()
     plant_bot.startup_phase()
 
+    keep_looping = True
+    while keep_looping:
+        plant_bot.monitor_phase()
+
