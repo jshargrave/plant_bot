@@ -2,6 +2,9 @@ from math import sqrt
 import enum
 import time
 
+MIN_VOLTAGE = 0.1
+MAX_VOLTAGE = 3
+
 
 class VH400SensorState(enum.Enum):
     startup = 0                 # This is the initial state the sensor goes in, should leave this state after first read
@@ -44,8 +47,9 @@ class VH400Sensor:
 
     def read_sensor(self):
         # Read value and convert to voltage
-        sensor_1dn = 0#analogRead(self.pin)
+        sensor_1dn = 482.856#analogRead(self.pin)
         voltage = sensor_1dn*(3.0 / 1023.0)
+        voltage = MAX_VOLTAGE
         vwc = self.convert_volts_to_vwc(voltage)
 
         # Set the current state of the sensor after the read
@@ -62,9 +66,8 @@ class VH400Sensor:
     @staticmethod
     def convert_volts_to_vwc(voltage):
         # Calculate VWC
-        vwc = 0
         # piecewise regressions
-        if 0 < voltage <= 1.1:
+        if MIN_VOLTAGE <= voltage <= 1.1:
             vwc = 10 * voltage - 1
         elif 1.1 < voltage <= 1.3:
             vwc = 25 * voltage - 17.5
@@ -72,10 +75,10 @@ class VH400Sensor:
             vwc = 48.08 * voltage - 47.5
         elif 1.82 < voltage <= 2.2:
             vwc = 26.32 * voltage - 7.89
-        elif 2.2 < voltage:
+        elif 2.2 < voltage <= MAX_VOLTAGE:
             vwc = 62.5 * voltage - 87.5
         else:
-            return -1
+            vwc = -1
 
         return vwc
 
@@ -96,7 +99,7 @@ class VH400Sensor:
         return 0 < vwc <= self.d_threshold
 
     def is_soil_wet(self, vwc):
-        return self.d_threshold < vwc <= self.w_threshold
+        return self.d_threshold < vwc >= self.w_threshold
 
     def record(self):
         pass
