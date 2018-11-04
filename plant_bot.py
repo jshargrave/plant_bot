@@ -1,11 +1,8 @@
 from vh400_sensor import VH400Sensor, VH400SensorMode, VH400SensorState
 import enum
 import time
-from notify import EmailNotify, SMSNotify
-
-# Soil thresholds
-DRY_THRESHOLD = 0.10
-WET_THRESHOLD = 0.25
+import json
+from notify import EmailNotify
 
 
 class PlantBotMode(enum.Enum):
@@ -23,27 +20,28 @@ class PlantBotMode(enum.Enum):
 # sensor has entered the dry state, add the VH400SensorState.dry state to the
 # notify_state_list.
 class PlantBot:
-    def __init__(self):
+    def __init__(self, config):
         # List of sensors
         self.sensor_list = [
-            VH400Sensor(0, DRY_THRESHOLD, WET_THRESHOLD, VH400SensorMode.normal),
-            VH400Sensor(1, DRY_THRESHOLD, WET_THRESHOLD, VH400SensorMode.normal)
+            VH400Sensor(*json.loads(config["Sensor"]["sensor_0_settings"])),
+            VH400Sensor(*json.loads(config["Sensor"]["sensor_1_settings"])),
         ]
 
         # States that trigger notification
         self.notify_action_list = [
             VH400SensorState.dry,
             VH400SensorState.wet,
-            VH400SensorState.bad_read
+            VH400SensorState.bad_read,
         ]
 
         # States that trigger watering
         self.water_action_list = [
-            VH400SensorState.dry
+            VH400SensorState.dry,
         ]
 
+        # Holds the list of notify handlers
         self.notify_list = [
-            EmailNotify("happyguyhere@hotmail.com", "happyguyhere@hotmail.com", ["happyguyhere@hotmail.com", "password"])
+            EmailNotify(*json.loads(config["Notify"]["notify_0_settings"]))
         ]
 
         self.state = PlantBotMode.startup   # Initializing state to startup
@@ -149,7 +147,7 @@ class PlantBot:
         self.state = PlantBotMode.waiting
 
         # Waiting phase
-        print("Waiting {} min...".format(self.waiting_period/60))
+        print("Waiting {:.2f} min...".format(self.waiting_period/60))
         time.sleep(self.waiting_period)
         print("Waiting complete!")
 
@@ -172,7 +170,7 @@ class PlantBot:
         return sensor_action_list
 
     def generate_message(self, sensor_list):
-        message = "Plant Bot says hello!\n\n"
+        message = "Hello father!\n\n"
 
         for sensor in sensor_list:
             message += "{}\n\n".format(self.generate_sensor_message(sensor))
@@ -180,9 +178,13 @@ class PlantBot:
 
     @staticmethod
     def generate_sensor_message(sensor):
-        message = (
+        msg_format = (
                 "Sensor Reading: \n"
-                "  Sensor ID: {}\n"
-                "  State: {}\n"
-                "  Volumetric Water Content: {}\n").format(sensor.sensor_id, sensor.state, sensor.vwc)
+                "  Nickname: {0:s}\n"
+                "  Sensor ID: {1:d}\n"
+                "  Mode: {2:s}\n"
+                "  State: {3:s}\n"
+                "  Volumetric Water Content: {4:.2f}%\n")
+
+        message = msg_format.format(sensor.nickname, sensor.sensor_id, sensor.mode, sensor.state, sensor.vwc)
         return message

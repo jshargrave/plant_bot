@@ -36,9 +36,9 @@ class InvalidSender(Exception):
 
 
 class EmailNotify:
-    def __init__(self, sender, recipient_list, credentials):
+    def __init__(self, recipient_list, credentials):
         self.credentials = credentials
-        self.sender = sender
+        self.sender = credentials[0]
         self.recipient_list = recipient_list
         self.subject = "PlantBot Notification"
 
@@ -58,7 +58,7 @@ class EmailNotify:
             # Setup email message
             msg = email.message_from_string(msg_str)
             msg['From'] = self.sender
-            msg['To'] = self.recipient_list
+            msg['To'] = ";".join(self.recipient_list)
             msg['Subject'] = self.subject
 
             # Send email

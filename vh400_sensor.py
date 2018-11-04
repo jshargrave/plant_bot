@@ -1,6 +1,8 @@
 from math import sqrt
 import enum
 import time
+import gpiozero
+import signal
 
 MIN_VOLTAGE = 0.1
 MAX_VOLTAGE = 3
@@ -34,11 +36,13 @@ class VH400SensorData:
 
 
 class VH400Sensor:
-    def __init__(self, sensor_id, d_threshold, w_threshold, mode):
+    def __init__(self, pin, sensor_id, nickname, d_threshold, w_threshold, mode):
+        self.sensor_reader = gpiozero.InputDevice(pin)
+        self.nickname = nickname
         self.sensor_id = sensor_id
         self.d_threshold = d_threshold
         self.w_threshold = w_threshold
-        self.mode = mode
+        self.mode = VH400SensorMode(mode)
         self.vwc = 0
 
         # State variables
@@ -47,9 +51,8 @@ class VH400Sensor:
 
     def read_sensor(self):
         # Read value and convert to voltage
-        sensor_1dn = 482.856#analogRead(self.pin)
+        sensor_1dn = float(self.sensor_reader.value)
         voltage = sensor_1dn*(3.0 / 1023.0)
-        voltage = MAX_VOLTAGE
         vwc = self.convert_volts_to_vwc(voltage)
 
         # Set the current state of the sensor after the read
